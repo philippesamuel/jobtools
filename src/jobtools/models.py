@@ -116,14 +116,14 @@ class CookiecutterContext(BaseModel):
 # ---------------------------------------------------------------------------
 class ApplicationState(BaseModel):
     id: int
-    folder_name: str = Field(description="Relative folder name under BASE_PATH, e.g. '01_BASF_DataEngineer'.")
+    folder_name: str = Field(description="Relative folder name under BASE_PATH, e.g. '0001.BASF_Data-Engineer'.")
     status: ApplicationStatus = ApplicationStatus.DRAFT
-    source_url: str
+    source_url: Optional[str]
     language: Literal["de", "en"]
     company_short: str
     job_title_short: str
-    created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
+    created_at: Optional[datetime] = Field(default_factory=datetime.now)
+    updated_at: Optional[datetime] = Field(default_factory=datetime.now)
     extraction_path: Optional[Path] = Field(
         default=None,
         description="Relative path from BASE_PATH to extraction.yaml.",

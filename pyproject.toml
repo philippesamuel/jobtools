@@ -11,15 +11,17 @@ dependencies = [
     "cookiecutter>=2.7.1",
     "html2text>=2025.4.15",
     "httpx>=0.28.1",
+    "playwright>=1.58.0",
     "pydantic>=2.12.5",
     "pydantic-ai>=1.66.0",
     "pydantic-settings>=2.13.1",
+    "ruamel-yaml>=0.19.1",
     "toolz>=1.1.0",
     "typer>=0.24.1",
 ]
 
 [project.scripts]
-jobtools = "jobtools:main"
+jobtools = "jobtools.cli:app"
 
 [build-system]
 requires = ["uv_build>=0.9.18,<0.10.0"]

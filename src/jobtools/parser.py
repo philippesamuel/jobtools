@@ -40,10 +40,10 @@ def parse_meta(md_path: Path) -> ParsedMeta:
     agent: Agent[None, ParsedMeta] = Agent(
         model=settings.llm_model,
         system_prompt=_SYSTEM,
-        result_type=ParsedMeta,
+        output_type=ParsedMeta,
     )
     result = agent.run_sync(snippet)
-    meta = result.data
+    meta = result.output
     # Sanitize for filesystem
     meta.company_short = _slugify(meta.company_short)
     meta.job_title_short = _slugify(meta.job_title_short)

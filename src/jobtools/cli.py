@@ -37,7 +37,7 @@ def init(url: str = typer.Argument(..., help="Job posting URL.")) -> None:
     )
 
     typer.echo("[3/5] Scaffolding folder ...")
-    folder_name = f"{app_id:04d}_{meta.company_short}_{meta.job_title_short}"
+    folder_name = f"{app_id:04d}.{meta.company_short}_{meta.job_title_short}"
     cookiecutter(
         str(settings.cookiecutter_template),
         no_input=True,
