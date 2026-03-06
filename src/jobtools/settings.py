@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     manifest_filename: str = "manifest.yaml"
     llm_model: str = "ollama:devstral-small-2:24b-cloud"
     git_init: bool = True
+    review: bool = True
     cookiecutter_template: Path = Path("~/.config/jobtools/cookiecutter-jobapp")
 
     awesome_cv_dir: Path = Path("~/Developer/philippe-awesome-cv")

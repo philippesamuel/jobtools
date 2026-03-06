@@ -19,7 +19,7 @@ app = typer.Typer(name="jt", help="Job application CLI.")
 @app.command()
 def init(
     url: str = typer.Argument(..., help="Job posting URL."),
-    review: bool = typer.Option(False, "--review", "-r", help="Review parsed meta in $EDITOR before scaffolding."),
+    review: bool = typer.Option(settings.review, "--review/--no-review", "-r", help="Review parsed meta in $EDITOR before scaffolding."),
 ) -> None:
     """Scaffold a new application from a URL."""
     from jobtools.crawler import fetch_page
@@ -84,7 +84,7 @@ def init(
 @app.command()
 def extract(
     app_id: int = typer.Argument(..., help="Application ID."),
-    review: bool = typer.Option(False, "--review", "-r", help="Open result in $EDITOR before saving."),
+    review: bool = typer.Option(settings.review, "--review/--no-review", "-r", help="Open result in $EDITOR before saving."),
     dry_run: bool = typer.Option(False, "--dry-run", "-d", help="Skip API call."),
 ) -> None:
     """Extract structured data from job-post-raw.md -> data/extraction.yaml."""
@@ -134,7 +134,7 @@ def extract(
 def tailor(
     app_id: int = typer.Argument(..., help="Application ID."),
     reference: int = typer.Option(None, "--reference", "-ref", help="Use tex files from this app ID as base."),
-    review: bool = typer.Option(False, "--review", "-r", help="Open result in $EDITOR before saving."),
+    review: bool = typer.Option(settings.review, "--review/--no-review", "-r", help="Open result in $EDITOR before saving."),
     dry_run: bool = typer.Option(False, "--dry-run", "-d", help="Skip API call."),
 ) -> None:
     """Tailor coverletter-body, summary, experience, skills via LLM."""
