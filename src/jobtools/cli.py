@@ -1,13 +1,79 @@
+from __future__ import annotations
+
+from datetime import datetime, timezone
+from pathlib import Path
+
 import typer
+from cookiecutter.main import cookiecutter
+
+from jobtools.manifest import append_application, load_manifest, save_manifest
+from jobtools.models import ApplicationState, ApplicationStatus, Manifest
+from jobtools.settings import settings
 
 app = typer.Typer(name="jt", help="Job application CLI.")
 
 
+# ── init ─────────────────────────────────────────────────────────────────────
+
 @app.command()
 def init(url: str = typer.Argument(..., help="Job posting URL.")) -> None:
     """Scaffold a new application from a URL."""
-    raise NotImplementedError
+    from jobtools.crawler import fetch_page
+    from jobtools.parser import parse_meta
 
+    # 1. Determine next id
+    manifest = load_manifest(settings.manifest_path)
+    app_id = manifest.next_id()
+
+    typer.echo(f"[1/5] Fetching {url} ...")
+    tmp_data = settings.base_path / f".tmp_{app_id}"
+    html_path, md_path = fetch_page(url, tmp_data)
+
+    typer.echo("[2/5] Parsing company / title / language ...")
+    meta = parse_meta(md_path)
+    typer.echo(
+        f"      -> company={meta.company_short}  title={meta.job_title_short}  lang={meta.language}"
+    )
+
+    typer.echo("[3/5] Scaffolding folder ...")
+    folder_name = f"{app_id:04d}_{meta.company_short}_{meta.job_title_short}"
+    cookiecutter(
+        str(settings.cookiecutter_template),
+        no_input=True,
+        output_dir=str(settings.base_path),
+        extra_context={
+            "app_id": app_id,
+            "company_short": meta.company_short,
+            "job_title_short": meta.job_title_short,
+            "language": meta.language,
+            "source_url": url,
+            "folder_name": folder_name,
+        },
+    )
+
+    typer.echo("[4/5] Moving crawled files ...")
+    data_dir = settings.base_path / folder_name / "data"
+    (tmp_data / "job-post-raw.html").rename(data_dir / "job-post-raw.html")
+    (tmp_data / "job-post-raw.md").rename(data_dir / "job-post-raw.md")
+    tmp_data.rmdir()
+
+    typer.echo("[5/5] Updating manifest ...")
+    state = ApplicationState(
+        id=app_id,
+        folder_name=folder_name,
+        status=ApplicationStatus.DRAFT,
+        source_url=url,
+        language=meta.language,  # type: ignore[arg-type]
+        company_short=meta.company_short,
+        job_title_short=meta.job_title_short,
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
+    )
+    append_application(state, settings.manifest_path)
+    typer.secho(f"\nCreated: {folder_name}", fg=typer.colors.GREEN)
+
+
+# ── extract ───────────────────────────────────────────────────────────────────
 
 @app.command()
 def extract(app_id: int = typer.Argument(..., help="Application ID.")) -> None:
@@ -15,17 +81,23 @@ def extract(app_id: int = typer.Argument(..., help="Application ID.")) -> None:
     raise NotImplementedError
 
 
+# ── tailor ────────────────────────────────────────────────────────────────────
+
 @app.command()
 def tailor(app_id: int = typer.Argument(..., help="Application ID.")) -> None:
     """Generate draft .tex files via LLM."""
     raise NotImplementedError
 
 
+# ── compile ───────────────────────────────────────────────────────────────────
+
 @app.command()
 def compile(app_id: int = typer.Argument(..., help="Application ID.")) -> None:
-    """Compile lualatex → PDF bundle."""
+    """Compile lualatex -> PDF bundle."""
     raise NotImplementedError
 
+
+# ── status ────────────────────────────────────────────────────────────────────
 
 @app.command()
 def status(
@@ -33,13 +105,35 @@ def status(
     new_status: str = typer.Argument(..., help="New status value."),
 ) -> None:
     """Update application status in manifest."""
-    raise NotImplementedError
+    manifest = load_manifest(settings.manifest_path)
+    state = manifest.get(app_id)
+    if not state:
+        typer.secho(f"Error: application {app_id} not found.", fg=typer.colors.RED)
+        raise typer.Exit(1)
+    state.status = ApplicationStatus(new_status)
+    state.updated_at = datetime.now(timezone.utc)
+    save_manifest(manifest, settings.manifest_path)
+    typer.secho(f"{app_id} -> {new_status}", fg=typer.colors.GREEN)
 
+
+# ── list ──────────────────────────────────────────────────────────────────────
 
 @app.command(name="list")
-def list_apps() -> None:
+def list_apps(
+    status_filter: str = typer.Option(None, "--status", "-s", help="Filter by status."),
+) -> None:
     """List all applications from manifest."""
-    raise NotImplementedError
+    manifest = load_manifest(settings.manifest_path)
+    apps = manifest.applications
+    if status_filter:
+        apps = [a for a in apps if a.status == status_filter]
+    if not apps:
+        typer.echo("No applications found.")
+        return
+    for a in apps:
+        typer.echo(
+            f"{a.id:04d}  {a.status:<12}  {a.company_short:<20}  {a.job_title_short}"
+        )
 
 
 if __name__ == "__main__":
