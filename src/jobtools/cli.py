@@ -202,9 +202,31 @@ def tailor(
 # ── compile ───────────────────────────────────────────────────────────────────
 
 @app.command()
-def compile(app_id: int = typer.Argument(..., help="Application ID.")) -> None:
-    """Compile lualatex -> PDF bundle."""
-    raise NotImplementedError
+def compile(
+    app_id: int = typer.Argument(..., help="Application ID."),
+    clean: bool = typer.Option(True, "--clean/--no-clean", "-c", help="Remove aux files after compile."),
+) -> None:
+    """Compile master .tex -> build/ via lualatex."""
+    from jobtools.compiler import compile_pdf
+
+    manifest = load_manifest(settings.manifest_path)
+    state = manifest.get(app_id)
+    if not state:
+        typer.secho(f"Error: application {app_id} not found.", fg=typer.colors.RED)
+        raise typer.Exit(1)
+
+    app_dir = settings.base_path / state.folder_name
+    typer.echo(f"-> Compiling {state.folder_name} ...")
+
+    try:
+        pdf_path = compile_pdf(app_dir, clean=clean)
+    except (FileNotFoundError, RuntimeError) as e:
+        typer.secho(f"Error: {e}", fg=typer.colors.RED)
+        raise typer.Exit(1)
+
+    state.updated_at = datetime.now(timezone.utc)
+    save_manifest(manifest, settings.manifest_path)
+    typer.secho(f"PDF -> {pdf_path.relative_to(settings.base_path)}", fg=typer.colors.GREEN)
 
 
 # ── status ────────────────────────────────────────────────────────────────────
