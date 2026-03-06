@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 from pathlib import Path
+from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from pydantic_ai import Agent
 
 from jobtools.settings import settings
@@ -13,13 +15,18 @@ class ParsedMeta(BaseModel):
     """Minimal metadata needed to scaffold the folder — parsed before full extraction."""
     company_short: str
     job_title_short: str
-    language: str  # "de" | "en"
+    language: Literal["de", "en"]
+
+    @field_validator("company_short", "job_title_short", mode="after")
+    @classmethod
+    def slugify(cls, v: str) -> str:
+        return _slugify(v)
 
 
 _SYSTEM = """\
 Extract three fields from the job description:
-- company_short: slug-safe short company name, CamelCase, no spaces (e.g. "BASF", "McKinsey")
-- job_title_short: slug-safe short job title, CamelCase, no spaces (e.g. "DataEngineer", "Berater")
+- company_short: short company name, CamelCase, no spaces (e.g. "BASF", "McKinsey", "StromnetzBerlin")
+- job_title_short: short job title, CamelCase, no spaces (e.g. "DataEngineer", "TechAnalyst", "Berater")
 - language: "de" if the JD is primarily German, "en" if English
 
 Return ONLY valid JSON matching the schema. No explanation.
@@ -27,9 +34,20 @@ Return ONLY valid JSON matching the schema. No explanation.
 
 
 def _slugify(s: str) -> str:
-    """Remove characters unsafe for folder names."""
-    s = re.sub(r"[^\w\-]", "", s.replace(" ", "_"))
-    return s
+    """
+    Filesystem-safe slug:
+    1. Unicode normalize to NFKD, encode to ASCII (drops umlauts accents etc.)
+    2. Replace remaining non-alphanumeric chars with nothing
+    3. Collapse multiple underscores/dashes
+    """
+    # NFKD + ASCII transliteration (Müller → Muller, Ü → U)
+    normalized = unicodedata.normalize("NFKD", s)
+    ascii_str = normalized.encode("ascii", "ignore").decode("ascii")
+    # Strip anything that isn't alphanumeric, dash, or underscore
+    cleaned = re.sub(r"[^\w\-]", "", ascii_str)
+    # Collapse runs of _ or -
+    cleaned = re.sub(r"[-_]{2,}", "_", cleaned)
+    return cleaned.strip("_-")
 
 
 def parse_meta(md_path: Path) -> ParsedMeta:
@@ -43,8 +61,4 @@ def parse_meta(md_path: Path) -> ParsedMeta:
         output_type=ParsedMeta,
     )
     result = agent.run_sync(snippet)
-    meta = result.output
-    # Sanitize for filesystem
-    meta.company_short = _slugify(meta.company_short)
-    meta.job_title_short = _slugify(meta.job_title_short)
-    return meta
+    return result.output

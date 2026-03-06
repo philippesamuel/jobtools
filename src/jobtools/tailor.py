@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 
+import typer
 from pydantic_ai import Agent
 
 from jobtools.models import ExtractionResult, TailoringResult
@@ -17,8 +19,26 @@ _BASE_FILES = [
 ]
 
 
+def check_language_mismatch(
+    base_lang: Literal["de", "en"],
+    target_lang: Literal["de", "en"],
+    reference_name: str,
+) -> None:
+    """Warn (but don't abort) if reference and target languages differ."""
+    if base_lang != target_lang:
+        typer.secho(
+            f"  [warn] language mismatch: reference '{reference_name}' is '{base_lang}', "
+            f"target is '{target_lang}'. Templates will be in {base_lang} but application is {target_lang}.",
+            fg=typer.colors.YELLOW,
+        )
+        typer.secho(
+            "         Proceed carefully — review output before saving.",
+            fg=typer.colors.YELLOW,
+        )
+
+
 def load_base_templates(app_dir: Path, language: str) -> dict[str, str]:
-    """Read base tex files from app_dir, return {filename: content}."""
+    """Read base tex files from app_dir, return {relative_path: content}."""
     templates: dict[str, str] = {}
     for pattern in _BASE_FILES:
         rel = pattern.format(language=language)
@@ -26,7 +46,8 @@ def load_base_templates(app_dir: Path, language: str) -> dict[str, str]:
         if path.exists():
             templates[rel] = path.read_text(encoding="utf-8")
         else:
-            templates[rel] = ""  # missing file — LLM will skip gracefully
+            typer.secho(f"  [warn] base template not found, skipping: {rel}", fg=typer.colors.YELLOW)
+            templates[rel] = ""
     return templates
 
 
@@ -47,10 +68,10 @@ def _build_user_prompt(
 
 async def run_tailoring(
     extraction: ExtractionResult,
-    app_dir: Path,
-    language: str,
+    base_dir: Path,
+    base_lang: str,
 ) -> TailoringResult:
-    templates = load_base_templates(app_dir, language)
+    templates = load_base_templates(base_dir, base_lang)
     user_prompt = _build_user_prompt(extraction, templates)
 
     agent: Agent[None, TailoringResult] = Agent(
@@ -67,11 +88,11 @@ def save_tailored_files(
     app_dir: Path,
     language: str,
 ) -> list[Path]:
-    """Write tailored content back to the application folder. Returns written paths."""
+    """Write tailored content to the application folder. Returns written paths."""
     written: list[Path] = []
 
     mapping: list[tuple[str, str | None]] = [
-        (f"coverletter/coverletter-body.tex", result.coverletter_body),
+        ("coverletter/coverletter-body.tex", result.coverletter_body),
         (f"resume/{language}/summary.tex", result.summary),
         (f"resume/{language}/experience.tex", result.experience),
         (f"resume/{language}/skills.tex", result.skills),
@@ -79,6 +100,7 @@ def save_tailored_files(
 
     for rel_path, content in mapping:
         if content is None:
+            typer.echo(f"   skipped {rel_path} (no changes)")
             continue
         path = app_dir / rel_path
         path.parent.mkdir(parents=True, exist_ok=True)

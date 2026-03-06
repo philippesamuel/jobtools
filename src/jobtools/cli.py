@@ -134,14 +134,14 @@ def extract(
 def tailor(
     app_id: int = typer.Argument(..., help="Application ID."),
     reference: int = typer.Option(None, "--reference", "-ref", help="Use tex files from this app ID as base."),
-    review: bool = typer.Option(settings.review, "--review/--no-review", "-r", help="Open result in $EDITOR before saving."),
+    review: bool = typer.Option(False, "--review", "-r", help="Open result in $EDITOR before saving."),
     dry_run: bool = typer.Option(False, "--dry-run", "-d", help="Skip API call."),
 ) -> None:
     """Tailor coverletter-body, summary, experience, skills via LLM."""
     from ruamel.yaml import YAML as _YAML
     from jobtools.extractor import review_in_editor
     from jobtools.models import ExtractionResult
-    from jobtools.tailor import load_base_templates, run_tailoring, save_tailored_files
+    from jobtools.tailor import check_language_mismatch, load_base_templates, run_tailoring, save_tailored_files
 
     manifest = load_manifest(settings.manifest_path)
     state = manifest.get(app_id)
@@ -174,6 +174,7 @@ def tailor(
         base_dir = app_dir
         base_lang = state.language
 
+    check_language_mismatch(base_lang, state.language, base_dir.name)
     typer.echo(f"-> Base: {base_dir.name} ({base_lang})")
     typer.echo(f"-> Model: {settings.llm_model}")
 
@@ -219,14 +220,40 @@ def compile(
     typer.echo(f"-> Compiling {state.folder_name} ...")
 
     try:
-        pdf_path = compile_pdf(app_dir, clean=clean)
+        compiled = compile_pdf(app_dir, clean=clean)
     except (FileNotFoundError, RuntimeError) as e:
         typer.secho(f"Error: {e}", fg=typer.colors.RED)
         raise typer.Exit(1)
 
     state.updated_at = datetime.now(timezone.utc)
     save_manifest(manifest, settings.manifest_path)
-    typer.secho(f"PDF -> {pdf_path.relative_to(settings.base_path)}", fg=typer.colors.GREEN)
+    for role, pdf in compiled.items():
+        typer.secho(f"   [{role}] {pdf.relative_to(settings.base_path)}", fg=typer.colors.GREEN)
+    typer.secho(f"Done: {len(compiled)} PDF(s) in build/", fg=typer.colors.GREEN)
+
+
+
+# ── open ─────────────────────────────────────────────────────────────────────
+
+@app.command(name="open")
+def open_folder(app_id: int = typer.Argument(..., help="Application ID.")) -> None:
+    """Open application folder in Finder (macOS) or file manager."""
+    import subprocess as _sp
+    import sys
+
+    manifest = load_manifest(settings.manifest_path)
+    state = manifest.get(app_id)
+    if not state:
+        typer.secho(f"Error: application {app_id} not found.", fg=typer.colors.RED)
+        raise typer.Exit(1)
+
+    app_dir = settings.base_path / state.folder_name
+    if not app_dir.exists():
+        typer.secho(f"Error: folder not found: {app_dir}", fg=typer.colors.RED)
+        raise typer.Exit(1)
+
+    opener = "open" if sys.platform == "darwin" else "xdg-open"
+    _sp.run([opener, str(app_dir)])
 
 
 # ── status ────────────────────────────────────────────────────────────────────
