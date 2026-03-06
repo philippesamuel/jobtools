@@ -131,6 +131,26 @@ class ApplicationState(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# TailoringResult  (Step 2 — generated tex content)
+# ---------------------------------------------------------------------------
+
+
+class TailoringResult(BaseModel):
+    """
+    Step 2 output — surgically tailored tex snippets.
+    Each field is the full content of the corresponding .tex file.
+    """
+    coverletter_body: str = Field(description="Full content of coverletter-body.tex")
+    summary: str = Field(description="Full content of summary.tex")
+    experience: str = Field(description="Full content of experience.tex")
+    skills: Optional[str] = Field(
+        default=None,
+        description="Full content of skills.tex. None if unchanged."
+    )
+
+
+
+# ---------------------------------------------------------------------------
 # Manifest  (root of manifest.yaml)
 # ---------------------------------------------------------------------------
 class Manifest(BaseModel):
