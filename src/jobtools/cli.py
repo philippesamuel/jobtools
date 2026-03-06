@@ -15,6 +15,7 @@ app = typer.Typer(name="jt", help="Job application CLI.")
 
 # ── init ─────────────────────────────────────────────────────────────────────
 
+
 @app.command()
 def init(url: str = typer.Argument(..., help="Job posting URL.")) -> None:
     """Scaffold a new application from a URL."""
@@ -75,13 +76,72 @@ def init(url: str = typer.Argument(..., help="Job posting URL.")) -> None:
 
 # ── extract ───────────────────────────────────────────────────────────────────
 
+
 @app.command()
-def extract(app_id: int = typer.Argument(..., help="Application ID.")) -> None:
-    """Extract structured data from job-post-raw.md."""
-    raise NotImplementedError
+def extract(
+    app_id: int = typer.Argument(..., help="Application ID."),
+    review: bool = typer.Option(
+        False, "--review", "-r", help="Open result in $EDITOR before saving."
+    ),
+    dry_run: bool = typer.Option(
+        False, "--dry-run", "-d", help="Print prompt, skip API call."
+    ),
+) -> None:
+    """Extract structured data from job-post-raw.md → data/extraction.yaml."""
+    import asyncio
+    from jobtools.extractor import (
+        open_in_editor,
+        result_to_yaml_str,
+        run_extraction,
+        save_extraction,
+        validate_edited_yaml,
+    )
+
+    manifest = load_manifest(settings.manifest_path)
+    state = manifest.get(app_id)
+    if not state:
+        typer.secho(f"Error: application {app_id} not found.", fg=typer.colors.RED)
+        raise typer.Exit(1)
+
+    app_dir = settings.base_path / state.folder_name
+    md_path = app_dir / "data" / "job-post-raw.md"
+    output_path = app_dir / "data" / "extraction.yaml"
+
+    if not md_path.exists():
+        typer.secho(f"Error: {md_path} not found.", fg=typer.colors.RED)
+        raise typer.Exit(1)
+
+    jd_text = md_path.read_text(encoding="utf-8")
+    typer.echo(f"-> JD: {md_path} ({len(jd_text)} chars)")
+    typer.echo(f"-> Model: {settings.llm_model}")
+
+    if dry_run:
+        typer.secho("Dry-run: skipping API call.", fg=typer.colors.YELLOW)
+        return
+
+    typer.echo("-> Extracting...")
+    result = asyncio.run(run_extraction(jd_text))
+    typer.echo(
+        f"   {result.company.name_short} | {result.job_title.short} | {result.company.sector}"
+    )
+
+    if review:
+        yaml_str = open_in_editor(result_to_yaml_str(result))
+        result = validate_edited_yaml(yaml_str)
+        typer.secho("   Validated after review.", fg=typer.colors.GREEN)
+
+    save_extraction(result, output_path)
+
+    # Update manifest with extraction path
+    state.extraction_path = Path(state.folder_name) / "data" / "extraction.yaml"
+    state.updated_at = datetime.now(timezone.utc)
+    save_manifest(manifest, settings.manifest_path)
+
+    typer.secho(f"Saved -> {output_path}", fg=typer.colors.GREEN)
 
 
 # ── tailor ────────────────────────────────────────────────────────────────────
+
 
 @app.command()
 def tailor(app_id: int = typer.Argument(..., help="Application ID.")) -> None:
@@ -91,6 +151,7 @@ def tailor(app_id: int = typer.Argument(..., help="Application ID.")) -> None:
 
 # ── compile ───────────────────────────────────────────────────────────────────
 
+
 @app.command()
 def compile(app_id: int = typer.Argument(..., help="Application ID.")) -> None:
     """Compile lualatex -> PDF bundle."""
@@ -98,6 +159,7 @@ def compile(app_id: int = typer.Argument(..., help="Application ID.")) -> None:
 
 
 # ── status ────────────────────────────────────────────────────────────────────
+
 
 @app.command()
 def status(
@@ -117,6 +179,7 @@ def status(
 
 
 # ── list ──────────────────────────────────────────────────────────────────────
+
 
 @app.command(name="list")
 def list_apps(
