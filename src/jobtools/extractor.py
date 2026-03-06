@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+import io
 import os
 import subprocess
 import tempfile
 from pathlib import Path
+from typing import TypeVar
 
 import typer
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 from pydantic_ai import Agent
 from ruamel.yaml import YAML
 
@@ -18,6 +20,8 @@ _yaml = YAML()
 _yaml.default_flow_style = False
 _yaml.allow_unicode = True
 _yaml.preserve_quotes = True
+
+T = TypeVar("T", bound=BaseModel)
 
 
 # ── Core extraction ───────────────────────────────────────────────────────────
@@ -32,13 +36,18 @@ async def run_extraction(jd_text: str) -> ExtractionResult:
     return result.output
 
 
-# ── Editor review ─────────────────────────────────────────────────────────────
+# ── Editor review (generic) ───────────────────────────────────────────────────
 
-def open_in_editor(yaml_str: str) -> str:
-    """Write yaml_str to a temp file, open $EDITOR, return edited content."""
+def _model_to_yaml_str(obj: BaseModel) -> str:
+    buf = io.StringIO()
+    _yaml.dump(obj.model_dump(mode="json"), buf)
+    return buf.getvalue()
+
+
+def _open_in_editor(yaml_str: str) -> str:
     editor = os.environ.get("EDITOR", os.environ.get("VISUAL", "vim"))
     with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".yaml", prefix="jd_extract_", encoding="utf-8", delete=False
+        mode="w", suffix=".yaml", prefix="jt_review_", encoding="utf-8", delete=False
     ) as f:
         f.write(yaml_str)
         tmp_path = Path(f.name)
@@ -52,32 +61,31 @@ def open_in_editor(yaml_str: str) -> str:
     return edited
 
 
-def validate_edited_yaml(edited: str) -> ExtractionResult:
-    """Parse edited YAML and validate against ExtractionResult. Re-prompts on error."""
+def review_in_editor(obj: T) -> T:
+    """
+    Serialize *obj* to YAML, open $EDITOR, deserialize and validate back.
+    Re-prompts on validation error. Returns the (possibly edited) model instance.
+    Works with any Pydantic BaseModel subclass.
+    """
+    model_cls = type(obj)
+    yaml_str = _model_to_yaml_str(obj)
+
     while True:
+        yaml_str = _open_in_editor(yaml_str)
         try:
-            import io
-            data = _yaml.load(io.StringIO(edited))
-            return ExtractionResult.model_validate(data)
+            data = _yaml.load(io.StringIO(yaml_str))
+            result = model_cls.model_validate(data)
+            typer.secho("   Validated.", fg=typer.colors.GREEN)
+            return result
         except (ValueError, ValidationError) as e:
             typer.secho(f"\nValidation error:\n{e}", fg=typer.colors.RED)
             if not typer.confirm("Re-open editor to fix?", default=True):
                 raise typer.Exit(1)
-            edited = open_in_editor(edited)
 
 
-# ── Serialisation ─────────────────────────────────────────────────────────────
-
-def result_to_yaml_str(result: ExtractionResult) -> str:
-    import io
-    buf = io.StringIO()
-    _yaml.dump(result.model_dump(mode="json"), buf)
-    return buf.getvalue()
-
-
-# ── Save ──────────────────────────────────────────────────────────────────────
+# ── Serialisation / Save ──────────────────────────────────────────────────────
 
 def save_extraction(result: ExtractionResult, output_path: Path) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    yaml_str = result_to_yaml_str(result)
+    yaml_str = _model_to_yaml_str(result)
     output_path.write_text(yaml_str, encoding="utf-8")
