@@ -64,14 +64,19 @@ def init(
     tmp_data.rmdir()
 
     typer.echo("[5/5] Updating manifest ...")
+    _lang = meta.language
     state = ApplicationState(
         id=app_id,
         folder_name=folder_name,
         status=ApplicationStatus.DRAFT,
         source_url=url,
-        language=meta.language,  # type: ignore[arg-type]
+        language=_lang,
         company_short=meta.company_short,
         job_title_short=meta.job_title_short,
+        app_name="Bewerbung" if _lang == "de" else "Application",
+        letter_name="Anschreiben" if _lang == "de" else "Cover-Letter",
+        resume_name="Lebenslauf" if _lang == "de" else "Resume",
+        attach_name="Anlagen" if _lang == "de" else "Attachments",
         created_at=datetime.now(timezone.utc),
         updated_at=datetime.now(timezone.utc),
     )
@@ -220,7 +225,7 @@ def compile(
     typer.echo(f"-> Compiling {state.folder_name} ...")
 
     try:
-        compiled = compile_pdf(app_dir, clean=clean)
+        compiled = compile_pdf(app_dir, state.pdf_names, clean=clean)
     except (FileNotFoundError, RuntimeError) as e:
         typer.secho(f"Error: {e}", fg=typer.colors.RED)
         raise typer.Exit(1)

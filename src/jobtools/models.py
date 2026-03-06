@@ -122,12 +122,28 @@ class ApplicationState(BaseModel):
     language: Literal["de", "en"]
     company_short: str
     job_title_short: str
-    created_at: Optional[datetime] = Field(default_factory=datetime.now)
-    updated_at: Optional[datetime] = Field(default_factory=datetime.now)
+    # PDF naming — mirrors cookiecutter.json computed vars
+    app_name: str = Field(description="e.g. 'Bewerbung' or 'Application'")
+    letter_name: str = Field(description="e.g. 'Anschreiben' or 'Cover-Letter'")
+    resume_name: str = Field(description="e.g. 'Lebenslauf' or 'Resume'")
+    attach_name: str = Field(description="e.g. 'Anlagen' or 'Attachments'")
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)
     extraction_path: Optional[Path] = Field(
         default=None,
         description="Relative path from BASE_PATH to extraction.yaml.",
     )
+
+    @property
+    def pdf_names(self) -> dict[str, str]:
+        """Jobname (without .pdf) for each lualatex compile target."""
+        c = self.company_short
+        return {
+            "master":      f"{self.app_name}_{c}",
+            "coverletter": f"{self.letter_name}_{c}",
+            "resume":      f"{self.resume_name}_{c}",
+            "attachments": f"{self.app_name}_{self.attach_name}_{c}",
+        }
 
 
 # ---------------------------------------------------------------------------
