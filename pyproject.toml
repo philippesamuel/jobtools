@@ -1,0 +1,31 @@
+[project]
+name = "jobtools"
+version = "0.1.0"
+description = "Personal job application CLI"
+readme = "README.md"
+authors = [
+    { name = "Philippe", email = "philippe.sa.costa@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "cookiecutter>=2.7.1",
+    "httpx>=0.28.1",
+    "pydantic>=2.12.5",
+    "pydantic-ai>=1.66.0",
+    "pydantic-settings>=2.13.1",
+    "toolz>=1.1.0",
+    "typer>=0.24.1",
+]
+
+[project.scripts]
+jobtools = "jobtools:main"
+
+[build-system]
+requires = ["uv_build>=0.9.18,<0.10.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+    "ruff>=0.15.5",
+]
