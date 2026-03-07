@@ -25,8 +25,8 @@ class ParsedMeta(BaseModel):
 
 _SYSTEM = """\
 Extract three fields from the job description:
-- company_short: short company name, CamelCase, no spaces (e.g. "BASF", "McKinsey", "StromnetzBerlin")
-- job_title_short: short job title, CamelCase, no spaces (e.g. "DataEngineer", "TechAnalyst", "Berater")
+- company_short: short company name, Title-Kebab-Case, no spaces (e.g. "BASF", "McKinsey", "Stromnetz-Berlin")
+- job_title_short: short job title, Title-Kebab-Case, no spaces (e.g. "Data-Engineer", "Tech-Analyst", "Berater")
 - language: "de" if the JD is primarily German, "en" if English
 
 Return ONLY valid JSON matching the schema. No explanation.
