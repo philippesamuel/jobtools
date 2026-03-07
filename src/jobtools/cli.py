@@ -7,8 +7,10 @@ from pathlib import Path
 import typer
 from cookiecutter.main import cookiecutter
 
+from jobtools.crawler import fetch_page
 from jobtools.manifest import append_application, load_manifest, save_manifest
 from jobtools.models import ApplicationState, ApplicationStatus
+from jobtools.parser import parse_meta
 from jobtools.settings import settings
 
 app = typer.Typer(name="jt", help="Job application CLI.")
@@ -22,9 +24,7 @@ def init(
     review: bool = typer.Option(settings.review, "--review/--no-review", "-r", help="Review parsed meta in $EDITOR before scaffolding."),
 ) -> None:
     """Scaffold a new application from a URL."""
-    from jobtools.crawler import fetch_page
     from jobtools.extractor import review_in_editor
-    from jobtools.parser import parse_meta
 
     # 1. Determine next id
     manifest = load_manifest(settings.manifest_path)
