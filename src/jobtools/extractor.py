@@ -89,3 +89,8 @@ def save_extraction(result: ExtractionResult, output_path: Path) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     yaml_str = _model_to_yaml_str(result)
     output_path.write_text(yaml_str, encoding="utf-8")
+    
+
+def load_extraction(path: Path) -> ExtractionResult:
+    data = _yaml.load(path.read_text(encoding="utf-8"))
+    return ExtractionResult.model_validate(data)

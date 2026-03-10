@@ -3,12 +3,14 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Optional
 
 import typer
+import html2text
 from cookiecutter.main import cookiecutter
 
 from jobtools.crawler import fetch_page
-from jobtools.extractor import review_in_editor, run_extraction, save_extraction
+from jobtools.extractor import review_in_editor, run_extraction, save_extraction, load_extraction
 from jobtools.manifest import append_application, load_manifest, save_manifest
 from jobtools.models import ApplicationState, ApplicationStatus
 from jobtools.utils import slugify
@@ -26,21 +28,41 @@ app = typer.Typer(
 
 @app.command()
 def init(
-    url: str = typer.Argument(..., help="Job posting URL."),
+    url: Optional[str] = typer.Argument(None, help="Job posting URL."),
+    from_file: Optional[Path] = typer.Option(None, "--from-file", "-f"),
+    from_extraction: Optional[Path] = typer.Option(None, "--from-extraction", "-e"),
     review: bool = typer.Option(settings.review, "--review/--no-review", "-r", help="Review extraction in $EDITOR before scaffolding."),
 ) -> None:
     """Scaffold a new application from a URL."""
+    # guard: exactly one source
+    sources = [x for x in [url, from_file, from_extraction] if x]
+    if len(sources) != 1:
+        typer.secho("Provide exactly one of: URL, --from-file, --from-extraction", fg=typer.colors.RED)
+        raise typer.Exit(1)
+
     manifest = load_manifest(settings.manifest_path)
     app_id = manifest.next_id()
-
-    typer.echo(f"[1/4] Fetching {url} ...")
     tmp_data = settings.base_path / f".tmp_{app_id}"
-    _, md_path = fetch_page(url, tmp_data)
 
-    typer.echo(f"[2/4] Extracting job data ...")
-    extraction = asyncio.run(run_extraction(md_path.read_text(encoding="utf-8")))
-    typer.echo(f"      -> {extraction.company.name_short} | {extraction.job_title.short} | {extraction.language}")
-
+    # Step 1: get md_text (or skip)
+    if url:
+        typer.echo(f"[1/4] Fetching {url} ...")
+        _, md_path = fetch_page(url, tmp_data)
+        md_text = md_path.read_text(encoding="utf-8")
+    elif from_file:
+        typer.echo(f"[1/4] Reading {from_file} ...")
+        md_text = _read_as_markdown(from_file)  # html→md if needed
+    # else: skip to step 2b
+    
+    # Step 2: extract (or load)
+    if from_extraction:
+        typer.echo(f"[1/4] Reading {from_extraction} ...")
+        extraction = load_extraction(from_extraction)
+    else:
+        typer.echo(f"[2/4] Extracting job data ...")
+        extraction = asyncio.run(run_extraction(md_text))
+        typer.echo(f"      -> {extraction.company.name_short} | {extraction.job_title.short} | {extraction.language}")
+    
     if review:
         extraction = review_in_editor(extraction)
 
@@ -72,18 +94,21 @@ def init(
             "contact_person": contact_person,
             "company_address": company_address,
             "reference_code": extraction.application.reference_code or "",
-            "source_url": url,
+            "source_url": url or extraction.source_url,
             "folder_name": folder_name,
         },
     )
 
     typer.echo("[4/4] Moving crawled files + updating manifest ...")
     data_dir = settings.base_path / folder_name / "data"
-    (tmp_data / "job-post-raw.html").rename(data_dir / "job-post-raw.html")
-    (tmp_data / "job-post-raw.md").rename(data_dir / "job-post-raw.md")
+    if url:
+        (tmp_data / "job-post-raw.html").rename(data_dir / "job-post-raw.html")
+        (tmp_data / "job-post-raw.md").rename(data_dir / "job-post-raw.md")
+        tmp_data.rmdir()
+    if from_file:
+        from_file.copy_into(data_dir)
     # Save extraction.yaml directly into the scaffolded folder
     save_extraction(extraction, data_dir / "extraction.yaml")
-    tmp_data.rmdir()
 
     state = ApplicationState(
         id=app_id,
@@ -317,6 +342,16 @@ def list_apps(
             f"{a.id:04d}  {a.status:<12}  {a.company_short:<20}  {a.job_title_short}"
         )
 
+
+def _read_as_markdown(file: str|Path) -> str:
+    converter = html2text.HTML2Text()
+    converter.ignore_links = False
+    converter.ignore_images = True
+    converter.ignore_tables = False
+    converter.body_width = 0  # no line wrapping
+    content = file.read_text(encoding='utf-8')
+    return converter.handle(content)
+    
 
 if __name__ == "__main__":
     app()
