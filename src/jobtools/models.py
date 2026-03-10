@@ -117,9 +117,9 @@ class CookiecutterContext(BaseModel):
         None,
         description="Name of contact person, if any"
     )
-    company_address_lines: list[str] = Field(
-        default_factory=list, 
-        description="Company's address lines. e.g.: ['Musterstr. 42', '12345 Berlin']"
+    company_address: str = Field(
+        default_factory="", 
+        description="Company's address lines separated by '\\ '. e.g.: 'Company GmbH\\ Musterstr. 42\\ 12345 Berlin'"
     )
     reference_code: Optional[str] = Field(
         None, description="Job reference code, if any"

@@ -8,9 +8,10 @@ import typer
 from cookiecutter.main import cookiecutter
 
 from jobtools.crawler import fetch_page
+from jobtools.extractor import review_in_editor, run_extraction, save_extraction
 from jobtools.manifest import append_application, load_manifest, save_manifest
 from jobtools.models import ApplicationState, ApplicationStatus
-from jobtools.parser import parse_meta
+from jobtools.utils import slugify
 from jobtools.settings import settings
 
 app = typer.Typer(
@@ -26,62 +27,77 @@ app = typer.Typer(
 @app.command()
 def init(
     url: str = typer.Argument(..., help="Job posting URL."),
-    review: bool = typer.Option(settings.review, "--review/--no-review", "-r", help="Review parsed meta in $EDITOR before scaffolding."),
+    review: bool = typer.Option(settings.review, "--review/--no-review", "-r", help="Review extraction in $EDITOR before scaffolding."),
 ) -> None:
     """Scaffold a new application from a URL."""
-    from jobtools.extractor import review_in_editor
-
-    # 1. Determine next id
     manifest = load_manifest(settings.manifest_path)
     app_id = manifest.next_id()
 
-    typer.echo(f"[1/5] Fetching {url} ...")
+    typer.echo(f"[1/4] Fetching {url} ...")
     tmp_data = settings.base_path / f".tmp_{app_id}"
-    html_path, md_path = fetch_page(url, tmp_data)
+    _, md_path = fetch_page(url, tmp_data)
 
-    typer.echo("[2/5] Parsing company / title / language ...")
-    meta = parse_meta(md_path)
-    typer.echo(f"      -> company={meta.company_short}  title={meta.job_title_short}  lang={meta.language}")
+    typer.echo(f"[2/4] Extracting job data ...")
+    extraction = asyncio.run(run_extraction(md_path.read_text(encoding="utf-8")))
+    typer.echo(f"      -> {extraction.company.name_short} | {extraction.job_title.short} | {extraction.language}")
 
     if review:
-        meta = review_in_editor(meta)
+        extraction = review_in_editor(extraction)
 
-    typer.echo("[3/5] Scaffolding folder ...")
-    folder_name = f"{app_id:04d}.{meta.company_short}_{meta.job_title_short}"
+    typer.echo("[3/4] Scaffolding folder ...")
+    company_short = slugify(extraction.company.name_short)
+    job_title_slug = slugify(extraction.job_title.short)
+    job_title_short = extraction.job_title.short
+    _lang = extraction.language
+    folder_name = f"{app_id:04d}.{company_short}_{job_title_short}"
+
+    # Resolve contact_person — fall back to language-appropriate default
+    contact_person = (
+        extraction.company.contact_person
+        or ("Personalabteilung" if _lang == "de" else "Hiring Manager")
+    )
+    # Resolve address lines — fall back to company name only
+    company_address = extraction.company.address
+
     cookiecutter(
         str(settings.cookiecutter_template),
         no_input=True,
         output_dir=str(settings.base_path),
         extra_context={
             "app_id": app_id,
-            "company_short": meta.company_short,
-            "job_title_short": meta.job_title_short,
-            "language": meta.language,
+            "language": _lang,
+            "job_title_short": job_title_short,
+            "job_title_slug": job_title_slug,
+            "company_short": company_short,
+            "contact_person": contact_person,
+            "company_address": company_address,
+            "reference_code": extraction.application.reference_code or "",
             "source_url": url,
             "folder_name": folder_name,
         },
     )
 
-    typer.echo("[4/5] Moving crawled files ...")
+    typer.echo("[4/4] Moving crawled files + updating manifest ...")
     data_dir = settings.base_path / folder_name / "data"
     (tmp_data / "job-post-raw.html").rename(data_dir / "job-post-raw.html")
     (tmp_data / "job-post-raw.md").rename(data_dir / "job-post-raw.md")
+    # Save extraction.yaml directly into the scaffolded folder
+    save_extraction(extraction, data_dir / "extraction.yaml")
     tmp_data.rmdir()
 
-    typer.echo("[5/5] Updating manifest ...")
-    _lang = meta.language
     state = ApplicationState(
         id=app_id,
         folder_name=folder_name,
         status=ApplicationStatus.DRAFT,
         source_url=url,
         language=_lang,
-        company_short=meta.company_short,
-        job_title_short=meta.job_title_short,
+        company_short=company_short,
+        job_title_short=job_title_short,
         app_name="Bewerbung" if _lang == "de" else "Application",
         letter_name="Anschreiben" if _lang == "de" else "Cover-Letter",
         resume_name="Lebenslauf" if _lang == "de" else "Resume",
         attach_name="Anlagen" if _lang == "de" else "Attachments",
+        extraction_path=Path(folder_name) / "data" / "extraction.yaml",
         created_at=datetime.now(timezone.utc),
         updated_at=datetime.now(timezone.utc),
     )
@@ -98,8 +114,6 @@ def extract(
     dry_run: bool = typer.Option(False, "--dry-run", "-d", help="Skip API call."),
 ) -> None:
     """Extract structured data from data/job-post-raw.md -> data/extraction.yaml."""
-    from jobtools.extractor import review_in_editor, run_extraction, save_extraction
-
     manifest = load_manifest(settings.manifest_path)
     state = manifest.get(app_id)
     if not state:
@@ -149,7 +163,6 @@ def tailor(
 ) -> None:
     """Tailor coverletter-body, summary, experience, skills via LLM."""
     from ruamel.yaml import YAML as _YAML
-    from jobtools.extractor import review_in_editor
     from jobtools.models import ExtractionResult
     from jobtools.tailor import check_language_mismatch, load_base_templates, run_tailoring, save_tailored_files
 
