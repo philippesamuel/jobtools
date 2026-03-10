@@ -13,7 +13,12 @@ from jobtools.models import ApplicationState, ApplicationStatus
 from jobtools.parser import parse_meta
 from jobtools.settings import settings
 
-app = typer.Typer(name="jt", help="Job application CLI.")
+app = typer.Typer(
+    name="jt", 
+    help="Job application CLI.", 
+    no_args_is_help=True,
+    context_settings={"help_option_names": ["-h", "--help"]},
+    )
 
 
 # ── init ─────────────────────────────────────────────────────────────────────
@@ -92,7 +97,7 @@ def extract(
     review: bool = typer.Option(settings.review, "--review/--no-review", "-r", help="Open result in $EDITOR before saving."),
     dry_run: bool = typer.Option(False, "--dry-run", "-d", help="Skip API call."),
 ) -> None:
-    """Extract structured data from job-post-raw.md -> data/extraction.yaml."""
+    """Extract structured data from data/job-post-raw.md -> data/extraction.yaml."""
     from jobtools.extractor import review_in_editor, run_extraction, save_extraction
 
     manifest = load_manifest(settings.manifest_path)
@@ -212,7 +217,7 @@ def compile(
     app_id: int = typer.Argument(..., help="Application ID."),
     clean: bool = typer.Option(True, "--clean/--no-clean", "-c", help="Remove aux files after compile."),
 ) -> None:
-    """Compile master .tex -> build/ via lualatex."""
+    """Compile application files *.tex -> build/ via lualatex."""
     from jobtools.compiler import compile_pdf
 
     manifest = load_manifest(settings.manifest_path)
@@ -266,7 +271,7 @@ def open_folder(app_id: int = typer.Argument(..., help="Application ID.")) -> No
 @app.command()
 def status(
     app_id: int = typer.Argument(..., help="Application ID."),
-    new_status: str = typer.Argument(..., help="New status value."),
+    new_status: ApplicationStatus = typer.Argument(..., help="New status value."),
 ) -> None:
     """Update application status in manifest."""
     manifest = load_manifest(settings.manifest_path)
