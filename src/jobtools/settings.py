@@ -1,5 +1,6 @@
+import os
 from pathlib import Path
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _GDRIVE = (
@@ -33,14 +34,23 @@ class Settings(BaseSettings):
     base_path: Path = Path(f"{_GDRIVE}/03_Work/03_Bewerbungen")
     manifest_filename: str = "manifest.yaml"
     llm_model: str = "ollama:devstral-small-2:24b-cloud"
+    ollama_base_url: str = "http://localhost:11434/v1"
     git_init: bool = True
     review: bool = True
+    
     cookiecutter_template: Path = Path("~/.config/jobtools/cookiecutter-jobapp")
+    cookiecutter_no_input: bool = True
 
     awesome_cv_dir: Path = Path("~/Developer/philippe-awesome-cv")
     # link_name → absolute target path (expanduser applied at runtime)
     attachments: dict[str, str] = _DEFAULT_ATTACHMENTS
 
+    @model_validator(mode="after")
+    def set_ollama_env(self) -> "Settings":
+        if self.llm_model.startswith("ollama:"):
+            os.environ.setdefault("OLLAMA_BASE_URL", self.ollama_base_url)
+        return self
+    
     @field_validator("base_path", "cookiecutter_template", "awesome_cv_dir", mode="before")
     @classmethod
     def expand_path(cls, v: str | Path) -> Path:

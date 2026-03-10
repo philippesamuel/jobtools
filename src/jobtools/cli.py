@@ -71,7 +71,7 @@ def init(
     job_title_slug = slugify(extraction.job_title.short)
     job_title_short = extraction.job_title.short
     _lang = extraction.language
-    folder_name = f"{app_id:04d}.{company_short}_{job_title_short}"
+    folder_name = f"{app_id:04d}.{company_short}_{job_title_slug}"
 
     # Resolve contact_person — fall back to language-appropriate default
     contact_person = (
@@ -83,7 +83,7 @@ def init(
 
     cookiecutter(
         str(settings.cookiecutter_template),
-        no_input=True,
+        no_input=settings.cookiecutter_no_input,
         output_dir=str(settings.base_path),
         extra_context={
             "app_id": app_id,
@@ -344,13 +344,15 @@ def list_apps(
 
 
 def _read_as_markdown(file: str|Path) -> str:
-    converter = html2text.HTML2Text()
-    converter.ignore_links = False
-    converter.ignore_images = True
-    converter.ignore_tables = False
-    converter.body_width = 0  # no line wrapping
     content = file.read_text(encoding='utf-8')
-    return converter.handle(content)
+    if file.suffix.lower() in (".html", ".htm"):
+        converter = html2text.HTML2Text()
+        converter.ignore_links = False
+        converter.ignore_images = True
+        converter.ignore_tables = False
+        converter.body_width = 0  # no line wrapping
+        return converter.handle(content)
+    return content
     
 
 if __name__ == "__main__":
