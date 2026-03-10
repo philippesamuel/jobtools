@@ -105,11 +105,25 @@ class ExtractionResult(BaseModel):
 # ---------------------------------------------------------------------------
 class CookiecutterContext(BaseModel):
     app_id: int = Field(description="Auto-incremented application ID.")
-    company_short: str = Field(description="Slug-safe short company name.")
-    job_title_short: str = Field(description="Slug-safe short job title.")
-    language: Literal["de", "en"]
     source_url: str
-
+    language: Literal["de", "en"]
+    company_short: str = Field(
+        description="Slug-safe short company name."
+        )
+    job_title_short: str = Field(
+        description="Slug-safe short job title."
+        )
+    contact_person: Optional[str] = Field(
+        None,
+        description="Name of contact person, if any"
+    )
+    company_address_lines: list[str] = Field(
+        default_factory=list, 
+        description="Company's address lines. e.g.: ['Musterstr. 42', '12345 Berlin']"
+    )
+    reference_code: Optional[str] = Field(
+        None, description="Job reference code, if any"
+    )
 
 # ---------------------------------------------------------------------------
 # ApplicationState  (manifest entry)
