@@ -10,7 +10,7 @@ requires-python = ">=3.12"
 dependencies = [
     # binaryornot 0.4.4 (cookiecutter dep) breaks with chardet>=7
     # see https://github.com/cookiecutter/cookiecutter/issues/2197
-    "chardet>=3.0.2,<7",
+    "chardet>=3.0.2,<5",
     "cookiecutter>=2.7.1",
     "html2text>=2025.4.15",
     "httpx>=0.28.1",
