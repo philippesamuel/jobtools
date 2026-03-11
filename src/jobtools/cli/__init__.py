@@ -1,6 +1,7 @@
 import typer
 
 from .init import app as init_app
+from .extract import app as extract_app
 from .cli import app as cli_app
 
 app = typer.Typer(
@@ -11,4 +12,5 @@ app = typer.Typer(
     )
 
 app.add_typer(init_app)
+app.add_typer(extract_app)
 app.add_typer(cli_app)
