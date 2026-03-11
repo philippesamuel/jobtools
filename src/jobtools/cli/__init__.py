@@ -1,0 +1,25 @@
+import typer
+
+from .init import app as init_app
+from .extract import app as extract_app
+from .tailor import app as tailor_app
+from .compile import app as compile_app
+from .open_ import app as open_app
+from .status import app as status_app
+from .config import app as config_app
+
+
+app = typer.Typer(
+    name="jt",
+    help="Job application CLI.",
+    no_args_is_help=True,
+    context_settings={"help_option_names": ["-h", "--help"]},
+    )
+
+app.add_typer(init_app)
+app.add_typer(extract_app)
+app.add_typer(tailor_app)
+app.add_typer(compile_app)
+app.add_typer(open_app)
+app.add_typer(status_app)
+app.add_typer(config_app)

@@ -27,11 +27,18 @@ SECTOR RULES:
 - pure data platform / analytics company               -> "data-eng"
 - IT consulting / software product / SaaS              -> "software"
 
+LANGUAGE RULES:
+- Detect the language of the job description itself
+- Set language: "de" if the JD is primarily German, "en" if primarily English
+- This is NOT the applicant's language — it is the JD's language
+
 JOB TASKS RULES:
-- Write each task as a plain German infinitive phrase, verb at the end (Verb am Satzende)
-- No nominalisations ("Analyse der..." → "analysieren")
-- No business jargon ("Sicherstellung" → "sicherstellen", "Schnürung" → "zusammenstellen")
+- Write each task as a plain infinitive phrase matching the JD language
 - Keep them short and concrete
+- If JD is German: verb at the end (Verb am Satzende), no nominalisations
+  - No nominalisations ("Analyse der..." → "analysieren")
+  - No business jargon ("Sicherstellung" → "sicherstellen", "Schnürung" → "zusammenstellen")
+- If JD is English: active infinitive, short and concrete
 
 ATS KEYWORD RULES:
 - Include job titles, hard skills, tools, frameworks, industry buzzwords, soft skills
