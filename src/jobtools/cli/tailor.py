@@ -3,9 +3,10 @@ from datetime import datetime, timezone
 
 import typer
 
-from jobtools.extractor import review_in_editor
+from jobtools.extractor import load_extraction, review_in_editor
 from jobtools.manifest import load_manifest, save_manifest
 from jobtools.settings import settings
+from jobtools.tailor import check_language_mismatch, load_base_templates, run_tailoring, save_tailored_files
 
 
 app = typer.Typer()
@@ -19,10 +20,6 @@ def tailor(
     dry_run: bool = typer.Option(False, "--dry-run", "-d", help="Skip API call."),
 ) -> None:
     """Tailor coverletter-body, summary, experience, skills via LLM."""
-    from ruamel.yaml import YAML as _YAML
-    from jobtools.models import ExtractionResult
-    from jobtools.tailor import check_language_mismatch, load_base_templates, run_tailoring, save_tailored_files
-
     manifest = load_manifest(settings.manifest_path)
     state = manifest.get(app_id)
     if not state:
@@ -34,11 +31,8 @@ def tailor(
         raise typer.Exit(1)
 
     # Load extraction
-    _yaml = _YAML()
     extraction_path = settings.base_path / state.extraction_path
-    extraction = ExtractionResult.model_validate(
-        _yaml.load(extraction_path.read_text(encoding="utf-8"))
-    )
+    extraction = load_extraction(extraction_path)
 
     # Resolve base template source
     app_dir = settings.base_path / state.folder_name

@@ -1,4 +1,5 @@
 import asyncio
+import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -101,7 +102,7 @@ def init(
             "contact_person": contact_person,
             "company_address": company_address,
             "reference_code": extraction.application.reference_code or "",
-            "source_url": url or extraction.source_url,
+            "source_url": url or extraction.source_url or str(from_file or from_extraction),
             "folder_name": folder_name,
         },
     )
@@ -113,7 +114,7 @@ def init(
         (tmp_data / "job-post-raw.md").rename(data_dir / "job-post-raw.md")
         tmp_data.rmdir()
     if from_file:
-        from_file.copy_into(data_dir)
+        shutil.copy(from_file, data_dir / from_file.name)
     # Save extraction.yaml directly into the scaffolded folder
     save_extraction(extraction, data_dir / "extraction.yaml")
 
