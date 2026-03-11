@@ -3,9 +3,11 @@ import subprocess as _sp
 
 import typer
 
-from jobtools.cli.cli import app
 from jobtools.manifest import load_manifest
 from jobtools.settings import settings
+
+
+app = typer.Typer()
 
 
 @app.command(name="open")

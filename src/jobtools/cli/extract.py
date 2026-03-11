@@ -4,10 +4,12 @@ from pathlib import Path
 
 import typer
 
-from jobtools.cli.cli import app
 from jobtools.extractor import review_in_editor, run_extraction, save_extraction
 from jobtools.manifest import load_manifest, save_manifest
 from jobtools.settings import settings
+
+
+app = typer.Typer()
 
 
 @app.command()
@@ -53,4 +55,3 @@ def extract(
     state.updated_at = datetime.now(timezone.utc)
     save_manifest(manifest, settings.manifest_path)
     typer.secho(f"Saved -> {output_path}", fg=typer.colors.GREEN)
-    
